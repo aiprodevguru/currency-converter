@@ -1,9 +1,10 @@
 ﻿using CurrencyConverter.DTOs;
+using CurrencyConverter.ViewModels;
 public interface IExchangeRateService
 {
-    Task<LatestExchangeRateResponseDto> GetLatestRatesAsync(GetLatestRateRequestDto dto);
+    Task<LatestRateResponseDto> GetLatestRatesAsync(LatestRateRequestDto dto);
     Task<ConvertCurrencyResponseDto> ConvertCurrencyAsync(ConvertCurrencyRequestDto dto);
-    Task<HistoricalRatesResponseDto> GetHistoricalRatesAsync(HistoricalRatesRequestDto dto);
+    Task<HistoricalRatesViewModel> GetHistoricalRatesAsync(HistoricalRatesRequestDto dto);
 }
 
 

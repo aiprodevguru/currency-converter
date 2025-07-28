@@ -8,6 +8,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using Xunit;
+using CurrencyConverter.Services.implementation;
 
 namespace CurrencyConverter.Test.Services
 {
@@ -43,7 +44,7 @@ namespace CurrencyConverter.Test.Services
             var loginRequestDto = new LoginRequestDto() { Username = "admin", Password = "wrong password" };
 
             // Act & Assert
-            var ex = Assert.Throws<ArgumentException>(() => _authService.Authenticate(loginRequestDto));
+            var ex = Assert.Throws<UnauthorizedAccessException>(() => _authService.Authenticate(loginRequestDto));
             Assert.Equal("username or pawword not correct", ex.Message);
         }
 

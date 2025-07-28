@@ -2,11 +2,13 @@ using CurrencyConverter.Exceptions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using CurrencyConverter.DTOs;
+using CurrencyConverter.ViewModels;
+using CurrencyConverter.Controllers;
 
 [Authorize]
 [ApiController]
 [Route("[controller]")]
-public class ExchangeRateController : ControllerBase
+public class ExchangeRateController : BaseApiController
 {
     private readonly IExchangeRateService _exchangeRateService;
 
@@ -15,52 +17,24 @@ public class ExchangeRateController : ControllerBase
         _exchangeRateService = exchangeRateService;
     }
     
-    [HttpGet("latest")]
-    public async Task<IActionResult> GetLatestRates([FromQuery] GetLatestRateRequestDto dto)
+    [HttpGet("Latest")]
+    public async Task<ActionResult<DataResponseViewModel<LatestRateResponseDto>>> GetLatestRates([FromQuery] LatestRateRequestDto dto)
     {
-        try
-        {
-            var result = await _exchangeRateService.GetLatestRatesAsync(dto);
-            return Ok(result);
-        }
-        catch (Exception ex) {
-            return BadRequest(ex.Message);
-        }
-        
+        var result = await _exchangeRateService.GetLatestRatesAsync(dto);
+        return OkResponse<LatestRateResponseDto>(result);
     }
     [Authorize(Policy = "AdminOnly")]
-    [HttpGet("convert")]
-    public async Task<IActionResult> ConvertCurrency([FromQuery] ConvertCurrencyRequestDto dto)
+    [HttpGet("Convert")]
+    public async Task<ActionResult<DataResponseViewModel<ConvertCurrencyResponseDto>>> ConvertCurrency([FromQuery] ConvertCurrencyRequestDto dto)
     {
-        try
-        {
-            var result = await _exchangeRateService.ConvertCurrencyAsync(dto);
-            return Ok(result);
-        }
-        catch (ArgumentException ex)
-        {
-            return BadRequest(ex.Message);
-        }
-        catch(Exception ex)
-        {
-            return Problem(ex.Message);
-        }
+        var result = await _exchangeRateService.ConvertCurrencyAsync(dto);
+        return OkResponse<ConvertCurrencyResponseDto>(result);
     }
     [Authorize(Policy = "AdminOnly")]
-    [HttpGet("history")]
-    public async Task<IActionResult> GetHistoricalRates([FromQuery] HistoricalRatesRequestDto requestDto)
+    [HttpGet("History")]
+    public async Task<ActionResult<PaginatedResponseViewModel<RateViewModel>>> GetHistoricalRates([FromQuery] HistoricalRatesRequestDto requestDto)
     {
-        try
-        {
-            var result = await _exchangeRateService.GetHistoricalRatesAsync(requestDto);
-            return Ok(result);
-        }
-        catch (ExchangeRateApiException ex)
-        {
-            return Problem(ex.Message);
-        }
-        catch (ArgumentException ex) {
-            return BadRequest(ex.Message);
-        }
+        var result = await _exchangeRateService.GetHistoricalRatesAsync(requestDto);
+        return PaginatedResponse<RateViewModel>(result.Data, result.TotalCount, result.PageSize, result.Page);
     }
 }

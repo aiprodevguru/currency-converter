@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Xunit;
 using CurrencyConverter.DTOs;
+using CurrencyConverter.ViewModels;
 
 
 namespace CurrencyConverter.Tests
@@ -45,8 +46,8 @@ namespace CurrencyConverter.Tests
             var response = await _client.PostAsJsonAsync("/api/auth/login", loginRequest);
             response.EnsureSuccessStatusCode(); // Throw if not 2xx
 
-            var tokenResponse = await response.Content.ReadFromJsonAsync<LoginResponseDto>();
-            var token = tokenResponse?.Token;
+            var tokenResponse = await response.Content.ReadFromJsonAsync<DataResponseViewModel<LoginResponseDto>>();
+            var token = tokenResponse?.Data?.Token;
 
             Assert.NotNull(token); // Ensure we got a token back
 
@@ -86,14 +87,13 @@ namespace CurrencyConverter.Tests
             var loginResponse = await _client.PostAsJsonAsync("/api/auth/login", loginRequest);
             loginResponse.EnsureSuccessStatusCode(); // Throw if not 2xx
 
-            var tokenResponse = await loginResponse.Content.ReadFromJsonAsync<LoginResponseDto>();
-            var token = tokenResponse?.Token;
+            var tokenResponse = await loginResponse.Content.ReadFromJsonAsync<DataResponseViewModel<LoginResponseDto>>();
+            var token = tokenResponse?.Data?.Token;
 
             Assert.NotNull(token); // Ensure we got a token back
 
             _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-            // Make 6 requests (assuming the limit is 5 per 10 seconds based on your config)
             for (int i = 0; i < 6; i++)
             {
                 var response = await _client.GetAsync("/api/exchangerate/latest?Base=USD");

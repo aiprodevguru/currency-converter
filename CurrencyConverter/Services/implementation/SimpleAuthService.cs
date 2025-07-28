@@ -4,7 +4,7 @@ using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 
-namespace CurrencyConverter.Services
+namespace CurrencyConverter.Services.implementation
 {
     public class SimpleAuthService : IAuthService
     {
@@ -22,9 +22,9 @@ namespace CurrencyConverter.Services
         }
         public string Authenticate(LoginRequestDto dto)
         {
-            var user = _users.FirstOrDefault<User>(p=>(p.UserName == dto.Username && p.Password == dto.Password));
+            var user = _users.FirstOrDefault(p=>p.UserName == dto.Username && p.Password == dto.Password);
             if (user == null) {
-                throw new ArgumentException("username or pawword not correct");
+                throw new UnauthorizedAccessException("username or pawword not correct");
             }
             return GenerateJwtToken(dto.Username, user.Role);
         }

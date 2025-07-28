@@ -3,7 +3,7 @@ using CurrencyConverter.Exceptions;
 
 namespace CurrencyConverter.Extensions
 {
-    public static class HttpClientExtensions
+    public static class FrankfurterApiClientExtensions
     {
         public static async Task<T> GetAndDeserializeAsync<T>(
             this HttpClient client,

@@ -1,13 +1,11 @@
-﻿using Microsoft.Extensions.Caching.Memory;
-using CurrencyConverter.Exceptions;
-using CurrencyConverter.Extensions;
-
+﻿
 using CurrencyConverter.DTOs;
 using CurrencyConverter.Porviders;
 using CurrencyConverter.Configurations;
 using Microsoft.Extensions.Options;
+using CurrencyConverter.ViewModels;
 
-namespace CurrencyConverter.Services
+namespace CurrencyConverter.Services.implementation
 {
     public class ExchangeRateService : IExchangeRateService
     {
@@ -17,7 +15,7 @@ namespace CurrencyConverter.Services
         
 
         public ExchangeRateService(
-            IOptions<ExcludedCurrenciesSettings> settings,
+            IOptions<ExcludedCurrenciesOptions> settings,
             ILogger<IExchangeRateService> logger,
             IExchangeRateProviderFactory providerFactory)
         {
@@ -31,7 +29,7 @@ namespace CurrencyConverter.Services
             }
         }
 
-        public async Task<LatestExchangeRateResponseDto> GetLatestRatesAsync(GetLatestRateRequestDto dto)
+        public async Task<LatestRateResponseDto> GetLatestRatesAsync(LatestRateRequestDto dto)
         {
             var exchangeRateProvider = _providerFactory.GetProvider(dto.Provider);
             var response = await exchangeRateProvider.GetLatestRatesAsync(dto.Base);
@@ -47,7 +45,7 @@ namespace CurrencyConverter.Services
             return response!;
         }
 
-        public async Task<HistoricalRatesResponseDto> GetHistoricalRatesAsync(HistoricalRatesRequestDto dto)
+        public async Task<HistoricalRatesViewModel> GetHistoricalRatesAsync(HistoricalRatesRequestDto dto)
         {
             var exchangeRateProvider = _providerFactory.GetProvider(dto.Provider);
             var fullResponse = await exchangeRateProvider.GetHistoricalRatesAsync(dto.BaseCurrency, dto.Start, dto.End, dto.Page, dto.PageSize);

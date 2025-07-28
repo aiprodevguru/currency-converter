@@ -1,6 +1,6 @@
 ﻿namespace CurrencyConverter.Configurations
 {
-    public class ExcludedCurrenciesSettings
+    public class ExcludedCurrenciesOptions
     {
         public required string[] Exclusions { get; set; }
     }

@@ -1,6 +1,6 @@
 ﻿namespace CurrencyConverter.Configurations
 {
-    public class ExchangeRateApiSettings
+    public class ExchangeRateApiOptions
     {
         public required string Default {  get; set; }
         public required List<ProviderSettings> Providers { get; set; }

@@ -8,6 +8,7 @@ using System;
 using System.Threading.Tasks;
 using System.Collections.Generic;
 using CurrencyConverter.DTOs;
+using CurrencyConverter.ViewModels;
 
 namespace CurrencyConverter.Tests.Controllers
 {
@@ -25,31 +26,21 @@ namespace CurrencyConverter.Tests.Controllers
         [Fact]
         public async Task GetLatestRates_ReturnsOkResult_WithRates()
         {
-            var mockRates = new LatestExchangeRateResponseDto()
+            var mockRates = new LatestRateResponseDto()
             {
                 Base="EUR",
-                Date=DateTime.Now,
+                Date= DateOnly.FromDateTime(DateTime.Today),
                 Rates= new Dictionary<string, decimal>() { { "USD", 1.0m }, { "EUR", 0.85m } }
             };
-            var dto = new GetLatestRateRequestDto() { Base = "EUR" };
+            var dto = new LatestRateRequestDto() { Base = "EUR" };
             _mockService.Setup(s => s.GetLatestRatesAsync(dto)).ReturnsAsync(mockRates);
 
             var result = await _controller.GetLatestRates(dto);
 
-            var okResult = Assert.IsType<OkObjectResult>(result);
-            Assert.Equal(mockRates, okResult.Value);
-        }
-
-        [Fact]
-        public async Task GetLatestRates_ReturnsBadRequest_OnException()
-        {
-            _mockService.Setup(s => s.GetLatestRatesAsync(It.IsAny<GetLatestRateRequestDto>()))
-                        .ThrowsAsync(new Exception("Something went wrong"));
-            var dto = new GetLatestRateRequestDto() { Base = "EUR" };
-            var result = await _controller.GetLatestRates(dto);
-
-            var badRequest = Assert.IsType<BadRequestObjectResult>(result);
-            Assert.Equal("Something went wrong", badRequest.Value);
+            var actionResult = Assert.IsType<ActionResult<DataResponseViewModel<LatestRateResponseDto>>>(result);
+            var okResult = Assert.IsType<OkObjectResult>(actionResult.Result);
+            var response = Assert.IsType<DataResponseViewModel<LatestRateResponseDto>>(okResult.Value);
+            Assert.Equal(mockRates, response.Data);
         }
 
         [Fact]
@@ -58,7 +49,7 @@ namespace CurrencyConverter.Tests.Controllers
             var convertedAmount = new ConvertCurrencyResponseDto() {
                 Amount = 12.1F,
                 Base = "USD",
-                Date = DateTime.Now,
+                Date = DateOnly.FromDateTime(DateTime.Today),
                 Rates = new Dictionary<string, decimal>()
             };
             var requestDto = new ConvertCurrencyRequestDto() { From="USD", To="EUR", Amount=100 };
@@ -68,75 +59,66 @@ namespace CurrencyConverter.Tests.Controllers
 
             var result = await _controller.ConvertCurrency(requestDto);
 
-            var okResult = Assert.IsType<OkObjectResult>(result);
-            Assert.Equal(convertedAmount, okResult.Value);
+            var actionResult = Assert.IsType<ActionResult<DataResponseViewModel<ConvertCurrencyResponseDto>>>(result);
+            var okResult = Assert.IsType<OkObjectResult>(actionResult.Result);
+            var response = Assert.IsType<DataResponseViewModel<ConvertCurrencyResponseDto>>(okResult.Value);
+            Assert.Equal(convertedAmount, response.Data);
         }
 
-        [Fact]
-        public async Task ConvertCurrency_ReturnsBadRequest_OnArgumentException()
-        {
-            _mockService.Setup(s => s.ConvertCurrencyAsync(It.IsAny<ConvertCurrencyRequestDto>()))
-                        .ThrowsAsync(new ArgumentException("Invalid currency"));
-            var requestDto = new ConvertCurrencyRequestDto() { From="XXX", To= "USD",  Amount = 100 };
-            var result = await _controller.ConvertCurrency(requestDto);
-
-            var badRequest = Assert.IsType<BadRequestObjectResult>(result);
-            Assert.Equal("Invalid currency", badRequest.Value);
-        }
 
         [Fact]
-        public async Task ConvertCurrency_ReturnsProblem_OnGeneralException()
+        public async Task GetHistoricalRates_ReturnsOkResult_WithData()
         {
+            var history = new HistoricalRatesViewModel
+            {
+                Base="USD",
+                StartDate=DateOnly.Parse("2025-01-01"),
+                EndDate= DateOnly.Parse("2025-05-01"),
+                Amount=100,
+                Page=1,
+                PageSize=10,
+                TotalCount=100,
+                TotalPages=10,
+                Data = new List<RateViewModel>
+                {
+                    new RateViewModel {Date=DateOnly.Parse("2025-01-02"), Rate=new Dictionary<string, decimal> { {"EUR", 100.0m } } },
+                    new RateViewModel {Date=DateOnly.Parse("2025-01-05"), Rate=new Dictionary<string, decimal> { {"EUR", 10.0m } } },
+                }
+            };
+
+            var requestDto = new HistoricalRatesRequestDto
+            {
+                BaseCurrency = "EUR",
+                Start = DateOnly.Parse("2025-01-01"),
+                End = DateOnly.Parse("2025-01-05"),
+                Page = 1,
+                PageSize=10,
+                Provider = "frankfurter"
+            };
+            _mockService.Setup(s => s.GetHistoricalRatesAsync(requestDto))
+                        .ReturnsAsync(history);
+
+            var result = await _controller.GetHistoricalRates(requestDto);
+
+            var actionResult = Assert.IsType<ActionResult<PaginatedResponseViewModel<RateViewModel>>>(result);
+            var okResult = Assert.IsType<OkObjectResult>(actionResult.Result);
+            var response = Assert.IsType<PaginatedResponseViewModel<RateViewModel>>(okResult.Value);
             
-            _mockService.Setup(s => s.ConvertCurrencyAsync(It.IsAny<ConvertCurrencyRequestDto>()))
-                        .ThrowsAsync(new Exception("Server error"));
-
-            var requestDto = new ConvertCurrencyRequestDto() { From = "EUR", To = "USD", Amount = 100 };
-            var result = await _controller.ConvertCurrency(requestDto);
-
-            var problem = Assert.IsType<ObjectResult>(result);
-            Assert.Equal(500, problem.StatusCode);
-        }
-
-        //[Fact]
-        //public async Task GetHistoricalRates_ReturnsOkResult_WithData()
-        //{
-        //    var history = new List<ExchangeRateViewModel>
-        //    {
-        //        new ExchangeRateViewModel { Date = DateTime.Today, Rates = new Dictionary<string, decimal> { { "EUR", 0.9m } } }
-        //    };
-
-        //    _mockService.Setup(s => s.GetHistoricalRatesAsync("USD", It.IsAny<DateTime>(), It.IsAny<DateTime>(), 1, 10))
-        //                .ReturnsAsync(history);
-
-        //    var result = await _controller.GetHistoricalRates("USD", DateTime.Today.AddDays(-2), DateTime.Today, 1, 10);
-
-        //    var okResult = Assert.IsType<OkObjectResult>(result);
-        //    Assert.Equal(history, okResult.Value);
-        //}
-
-        [Fact]
-        public async Task GetHistoricalRates_ReturnsProblem_OnApiException()
-        {
-            _mockService.Setup(s => s.GetHistoricalRatesAsync(It.IsAny<HistoricalRatesRequestDto>()))
-                        .ThrowsAsync(new ExchangeRateApiException("API error"));
-            var dto = new HistoricalRatesRequestDto() { BaseCurrency = "USD", Start = DateTime.Today.AddDays(-10), End = DateTime.Today, Page = 1, PageSize = 10 };
-            var result = await _controller.GetHistoricalRates(dto);
-
-            var problem = Assert.IsType<ObjectResult>(result);
-            Assert.Equal(500, problem.StatusCode);
-        }
-
-        [Fact]
-        public async Task GetHistoricalRates_ReturnsBadRequest_OnArgumentException()
-        {
-            _mockService.Setup(s => s.GetHistoricalRatesAsync(It.IsAny<HistoricalRatesRequestDto>()))
-                        .ThrowsAsync(new ArgumentException("Invalid date range"));
-            var dto = new HistoricalRatesRequestDto() { BaseCurrency="USD", Start = DateTime.Today.AddDays(-10), End= DateTime.Today, Page=1, PageSize=10 };
-            var result = await _controller.GetHistoricalRates(dto);
-
-            var badRequest = Assert.IsType<BadRequestObjectResult>(result);
-            Assert.Equal("Invalid date range", badRequest.Value);
+            Assert.Equivalent(new PaginatedResponseViewModel<RateViewModel> { 
+                Data = new List<RateViewModel>
+                {
+                    new RateViewModel {Date=DateOnly.Parse("2025-01-02"), Rate=new Dictionary<string, decimal> { {"EUR", 100.0m } } },
+                    new RateViewModel {Date=DateOnly.Parse("2025-01-05"), Rate=new Dictionary<string, decimal> { {"EUR", 10.0m } } },
+                },
+                Message= "Request successful.",
+                Success = true,
+                Pagination = new PaginationViewModel
+                {
+                    CurrentPage = 1,
+                    PageSize = 10,
+                    TotalCount=100
+                },
+            }, response);
         }
     }
 }

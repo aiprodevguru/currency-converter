@@ -1,4 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
@@ -9,12 +8,12 @@ using CurrencyConverter.Middlewares;
 using CurrencyConverter.Conventions;
 using Polly;
 using OpenTelemetry.Trace;
-using Microsoft.AspNetCore.RateLimiting;
 using System.Threading.RateLimiting;
 using System.Text.Json;
 using OpenTelemetry.Resources;
 using CurrencyConverter.Porviders;
 using CurrencyConverter.Configurations;
+using CurrencyConverter.Services.implementation;
 
 public partial class Program
 {
@@ -23,12 +22,37 @@ public partial class Program
         var builder = WebApplication.CreateBuilder(args);
 
         var env = builder.Environment;
-
         builder.Configuration
             .SetBasePath(Directory.GetCurrentDirectory())
             .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
             .AddJsonFile($"appsettings.{env.EnvironmentName}.json", optional: true, reloadOnChange: true)
             .AddEnvironmentVariables();
+
+        builder.Services.Configure<ExchangeRateApiOptions>(builder.Configuration.GetSection("ExchangeRateApi"));
+        builder.Services.Configure<ExcludedCurrenciesOptions>(builder.Configuration.GetSection("ExcludedCurrencies"));
+        builder.Services.Configure<JwtIssuerOptions>(builder.Configuration.GetSection("JwtIssuerOptions"));
+        builder.Services.Configure<RateLimitingOptions>(builder.Configuration.GetSection("RateLimiting"));
+        builder.Services.Configure<OpenTelemetryOptions>(builder.Configuration.GetSection("OpenTelemetry"));
+
+        // Bind & validate the settings
+        var exchangeRateApiOptions = builder.Configuration
+            .GetSection("ExchangeRateApi")
+            .Get<ExchangeRateApiOptions>() ?? throw new InvalidOperationException("Missing ExchangeRateApi config.");
+
+        var jwtOptions = builder.Configuration
+            .GetSection("JwtIssuerOptions")
+            .Get<JwtIssuerOptions>() ?? throw new InvalidOperationException("Missing JwtIssuerOptions config.");
+
+        var rateLimitingOptions = builder.Configuration
+            .GetSection("RateLimiting")
+            .Get<RateLimitingOptions>() ?? throw new InvalidOperationException("Missing RateLimiting config.");
+
+        var telemetryOptions = builder.Configuration
+            .GetSection("OpenTelemetry")
+            .Get<OpenTelemetryOptions>() ?? new OpenTelemetryOptions();
+
+
+        
 
         // Logging
         builder.Host.UseSerilog((context, config) =>
@@ -66,12 +90,10 @@ public partial class Program
         });
 
         // JWT Auth
+        var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtOptions.SecretKey));
 
-        var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["JwtIssuerOptions:SecretKey"]!));
 
         // Register the hashed key for reuse
-       
-
 
         builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             .AddJwtBearer(options =>
@@ -91,25 +113,11 @@ public partial class Program
             options.AddPolicy("AdminOnly", policy => policy.RequireRole("admin"));
         });
 
-
         // Custom Services
-       
         builder.Services.AddMemoryCache();
 
-        builder.Services.Configure<ExchangeRateApiSettings>(builder.Configuration.GetSection("ExchangeRateApi"));
-        builder.Services.Configure<ExcludedCurrenciesSettings>(builder.Configuration.GetSection("ExcludedCurrencies"));
-        // Bind & validate the settings
-        var exchangeRateApiSettings = builder.Configuration
-            .GetSection("ExchangeRateApi")
-            .Get<ExchangeRateApiSettings>();
-
-        if (exchangeRateApiSettings == null || !exchangeRateApiSettings.Providers.Any())
-        {
-            throw new InvalidOperationException("ExchangeRateApi settings or providers are missing or empty. Please check your configuration.");
-        }
-
        
-        foreach (var provider in exchangeRateApiSettings.Providers)
+        foreach (var provider in exchangeRateApiOptions.Providers)
         {
             builder.Services.AddHttpClient(provider.Name, client =>
             {
@@ -126,19 +134,30 @@ public partial class Program
                     durationOfBreak: TimeSpan.FromSeconds(provider.CircuitBreakerDurationSeconds)));
         }
 
+        if (telemetryOptions.Enabled)
+        {
+            builder.Services.AddOpenTelemetry()
+                .WithTracing(tracerProviderBuilder =>
+                {
+                    tracerProviderBuilder
+                        .SetResourceBuilder(ResourceBuilder.CreateDefault().AddService("CurrencyConverterAPI"))
+                        .AddAspNetCoreInstrumentation()
+                        .AddHttpClientInstrumentation();
 
+                    if (telemetryOptions.Exporter == "otlp" && !string.IsNullOrWhiteSpace(telemetryOptions.OtlpEndpoint))
+                    {
+                        tracerProviderBuilder.AddOtlpExporter(opt =>
+                        {
+                            opt.Endpoint = new Uri(telemetryOptions.OtlpEndpoint);
+                        });
+                    }
+                    else
+                    {
+                        tracerProviderBuilder.AddConsoleExporter();
+                    }
+                });
+        }
 
-        builder.Services.AddOpenTelemetry()
-         .WithTracing(tracerProviderBuilder =>
-         {
-             tracerProviderBuilder
-                 .SetResourceBuilder(
-                     ResourceBuilder.CreateDefault()
-                         .AddService("CurrencyConverterAPI")) // Logical service name for traces
-                 .AddAspNetCoreInstrumentation()
-                 .AddHttpClientInstrumentation()
-                 .AddConsoleExporter();
-         });
 
         builder.Services.AddRateLimiter(options =>
         {
@@ -163,10 +182,10 @@ public partial class Program
                     partitionKey: httpContext.User.Identity?.Name ?? "anonymous",
                     factory: _ => new FixedWindowRateLimiterOptions
                     {
-                        PermitLimit = int.Parse(builder.Configuration["RateLimiting:PermitLimit"]!),
-                        Window = TimeSpan.FromSeconds(int.Parse(builder.Configuration["RateLimiting:WindowSeconds"]!)),
+                        PermitLimit = rateLimitingOptions.PermitLimit,
+                        Window = TimeSpan.FromSeconds(rateLimitingOptions.WindowSeconds),
                         QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-                        QueueLimit = int.Parse(builder.Configuration["RateLimiting:QueueLimit"]!)
+                        QueueLimit = rateLimitingOptions.QueueLimit,
                     }));
         });
 
@@ -194,7 +213,7 @@ public partial class Program
         app.UseAuthorization();
         app.UseRateLimiter();
 
-        app.UseMiddleware<RequestLoggingMiddleware>();
+        app.UseMiddleware<LoggingMiddleware>();
 
         app.MapControllers().RequireRateLimiting("PerUserPolicy");
         return app;

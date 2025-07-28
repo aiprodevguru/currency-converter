@@ -10,19 +10,19 @@ namespace CurrencyConverter.Porviders
     public class ExchangeRateProviderFactory :IExchangeRateProviderFactory
     {
         private readonly IServiceProvider _serviceProvider;
-        private readonly ExchangeRateApiSettings _settings;
+        private readonly ExchangeRateApiOptions exchangeRateApiOptions;
 
-        public ExchangeRateProviderFactory(IServiceProvider serviceProvider, IOptions<ExchangeRateApiSettings> settings)
+        public ExchangeRateProviderFactory(IServiceProvider serviceProvider, IOptions<ExchangeRateApiOptions> settings)
         {
             _serviceProvider = serviceProvider;
-            _settings = settings.Value;
+            exchangeRateApiOptions = settings.Value;
         }
 
         public IExchangeRateProvider GetProvider(string? providerName)
         {
-            providerName = providerName ?? _settings.Default;
+            providerName = providerName ?? exchangeRateApiOptions.Default;
 
-            var providerConfig = _settings.Providers.FirstOrDefault(p =>
+            var providerConfig = exchangeRateApiOptions.Providers.FirstOrDefault(p =>
                 p.Name.Equals(providerName, StringComparison.OrdinalIgnoreCase));
 
             if (providerConfig == null)

@@ -1,6 +1,7 @@
 ﻿using CurrencyConverter.DTOs;
 using CurrencyConverter.Exceptions;
 using CurrencyConverter.Extensions;
+using CurrencyConverter.ViewModels;
 using Microsoft.Extensions.Caching.Memory;
 using System.Net.Http;
 
@@ -23,13 +24,13 @@ namespace CurrencyConverter.Porviders
             _httpClient = httpClientFactory.CreateClient("frankfurter");
         }
 
-        public async Task<LatestExchangeRateResponseDto> GetLatestRatesAsync(string baseCurrency)
+        public async Task<LatestRateResponseDto> GetLatestRatesAsync(string baseCurrency)
         {
 
             baseCurrency = baseCurrency.ToUpper();
             var today = DateTime.Today.ToString("yyyy-MM-dd");
             var cacheKey = $"{today}_{baseCurrency}";
-            if (_cache.TryGetValue(cacheKey, out LatestExchangeRateResponseDto? cached))
+            if (_cache.TryGetValue(cacheKey, out LatestRateResponseDto? cached))
             {
                 if (cached == null)
                 {
@@ -46,7 +47,7 @@ namespace CurrencyConverter.Porviders
                 _logger.LogInformation("Cache miss for key: {CacheKey}", cacheKey);
             }
 
-            var response = await _httpClient.GetAndDeserializeAsync<LatestExchangeRateResponseDto>($"/latest?base={baseCurrency}", _logger);
+            var response = await _httpClient.GetAndDeserializeAsync<LatestRateResponseDto>($"/latest?base={baseCurrency}", _logger);
 
             _cache.Set(cacheKey, response, TimeSpan.FromDays(1));
             return response!;
@@ -57,20 +58,20 @@ namespace CurrencyConverter.Porviders
             return response!;
         }
 
-        public async Task<HistoricalRatesResponseDto> GetHistoricalRatesAsync(string baseCurrency, DateTime start, DateTime end, int page, int pageSize)
+        public async Task<HistoricalRatesViewModel> GetHistoricalRatesAsync(string baseCurrency, DateOnly start, DateOnly end, int page, int pageSize)
         {
             baseCurrency = baseCurrency.ToUpper();
             var startStr = start.ToString("yyyy-MM-dd");
             var endStr = end.ToString("yyyy-MM-dd");
             var cacheKey = $"historical_{baseCurrency}_{startStr}_{endStr}";
 
-            if (!_cache.TryGetValue(cacheKey, out HistoricalRatesResponseDto? fullResponse) || fullResponse?.Rates == null)
+            if (!_cache.TryGetValue(cacheKey, out FrankfurterHistoricalRatesResponseViewModel? fullResponse) || fullResponse?.Rates == null)
             {
                 var requestUrl = $"/{startStr}..{endStr}?base={baseCurrency}";
 
                 try
                 {
-                    fullResponse = await _httpClient.GetAndDeserializeAsync<HistoricalRatesResponseDto>(requestUrl, _logger);
+                    fullResponse = await _httpClient.GetAndDeserializeAsync<FrankfurterHistoricalRatesResponseViewModel>(requestUrl, _logger);
                     var cacheEntryOptions = new MemoryCacheEntryOptions()
                     .SetSlidingExpiration(TimeSpan.FromHours(1));
 
@@ -86,19 +87,24 @@ namespace CurrencyConverter.Porviders
                .OrderBy(kv => kv.Key)
                .Skip((page - 1) * pageSize)
                .Take(pageSize)
-               .ToDictionary(kv => kv.Key, kv => kv.Value);
+               .Select(kvp => new RateViewModel
+               {
+                    Date = DateOnly.Parse(kvp.Key),
+                    Rate=kvp.Value
+               });
 
-
-            return new HistoricalRatesResponseDto
-            {
+           
+            return new HistoricalRatesViewModel {
                 Base = fullResponse.Base,
-                Start_Date = start,
-                End_Date = end,
-                Rates = pagedRates,
-                Amount = fullResponse.Amount,
-                TotalRecords = fullResponse.Rates.Count
+                StartDate=fullResponse.Start_Date,
+                EndDate=fullResponse.End_Date,
+                Amount=fullResponse.Amount,
+                TotalCount=fullResponse.Rates.Count,
+                Page = page,
+                PageSize = pageSize,
+                TotalPages = (int)Math.Ceiling(fullResponse.Rates.Count / (double)pageSize),
+                Data = pagedRates
             };
-
         }
     }
 }

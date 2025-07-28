@@ -2,13 +2,14 @@
 using Xunit;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Configuration;
-using CurrencyConverter.Services;
 using CurrencyConverter.Porviders;
 using CurrencyConverter.DTOs;
 using CurrencyConverter.Configurations;
 using System.Threading.Tasks;
 using System;
 using Microsoft.Extensions.Options;
+using CurrencyConverter.Services.implementation;
+using CurrencyConverter.ViewModels;
 
 
 namespace CurrencyConverter.Tests.Services
@@ -30,7 +31,7 @@ namespace CurrencyConverter.Tests.Services
             _providerFactoryMock.Setup(x => x.GetProvider(It.IsAny<string>()))
                 .Returns(_providerMock.Object);
 
-            var options = Options.Create(new ExcludedCurrenciesSettings
+            var options = Options.Create(new ExcludedCurrenciesOptions
             {
                 Exclusions = new[] { "TRY", "PLN", "THB", "MXN" }
             });
@@ -42,8 +43,8 @@ namespace CurrencyConverter.Tests.Services
         public async Task GetLatestRatesAsync_ShouldCallProviderAndReturnRates()
         {
             // Arrange
-            var requestDto = new GetLatestRateRequestDto { Base = "USD", Provider = "frankfurter" };
-            var expectedResponse = new LatestExchangeRateResponseDto
+            var requestDto = new LatestRateRequestDto { Base = "USD", Provider = "frankfurter" };
+            var expectedResponse = new LatestRateResponseDto
             {
                 Base = "USD",
                 Rates = new Dictionary<string, decimal> { { "EUR", 0.85m } }
@@ -80,7 +81,7 @@ namespace CurrencyConverter.Tests.Services
             {
                 Base = "USD",
                 Amount = 100,
-                Date = DateTime.Today,
+                Date = DateOnly.FromDateTime(DateTime.Today),
                 Rates = new Dictionary<string, decimal>() { { "EUR", 120 } }
             };
 
@@ -102,27 +103,32 @@ namespace CurrencyConverter.Tests.Services
             var requestDto = new HistoricalRatesRequestDto
             {
                 BaseCurrency = "USD",
-                Start = DateTime.UtcNow.AddDays(-30),
-                End = DateTime.UtcNow,
+                Start = DateOnly.FromDateTime(DateTime.Now).AddDays(-30),
+                End = DateOnly.FromDateTime(DateTime.Now),
                 Page = 1,
                 PageSize = 10,
                 Provider = "frankfurter"
             };
 
-            var expectedResponse = new HistoricalRatesResponseDto
+            var expectedResponse = new HistoricalRatesViewModel
             {
                 Base = "USD",
-                Start_Date = DateTime.UtcNow.AddDays(-30),
-                End_Date = DateTime.UtcNow,
-                Rates = new Dictionary<string, Dictionary<string, decimal>>
-{
-                    { "2025-01-01", new Dictionary<string, decimal> { { "EUR", 0.85m } } }
+                StartDate = DateOnly.FromDateTime(DateTime.Now).AddDays(-30),
+                EndDate = DateOnly.FromDateTime(DateTime.Now),
+                Data = new List<RateViewModel> {
+                    new RateViewModel {
+                        Date = DateOnly.Parse("2025-01-01"),
+                        Rate = new Dictionary<string, decimal> { { "EUR", 0.85m } }
+                    }
                 },
                 Amount = 100m,
-                TotalRecords = 10
+                Page = 1,
+                PageSize = 10,
+                TotalCount=100,
+                TotalPages=10
             };
 
-            _providerMock.Setup(p => p.GetHistoricalRatesAsync(It.IsAny<string>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<int>(), It.IsAny<int>()))
+            _providerMock.Setup(p => p.GetHistoricalRatesAsync(It.IsAny<string>(), It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<int>(), It.IsAny<int>()))
                 .ReturnsAsync(expectedResponse);
 
             // Act
@@ -131,7 +137,7 @@ namespace CurrencyConverter.Tests.Services
             // Assert
             Assert.NotNull(result);
             Assert.Equal(expectedResponse.Base, result.Base);
-            Assert.Contains("EUR", result.Rates.SelectMany(r => r.Value.Keys));
+            Assert.Contains("EUR", result.Data.SelectMany(r => r.Rate.Keys));
         }
     }
 }

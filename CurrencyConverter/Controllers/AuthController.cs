@@ -1,10 +1,12 @@
 ﻿using CurrencyConverter.Services;
 using Microsoft.AspNetCore.Mvc;
 using CurrencyConverter.DTOs;
+using CurrencyConverter.ViewModels;
+using CurrencyConverter.Controllers;
 
 [ApiController]
 [Route("[controller]")]
-public class AuthController : ControllerBase
+public class AuthController : BaseApiController
 {
     private readonly IAuthService _authService;
 
@@ -14,16 +16,9 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("login")]
-    public IActionResult Login([FromBody] LoginRequestDto requestDto)
+    public ActionResult<DataResponseViewModel<LoginResponseDto>> Login([FromBody] LoginRequestDto requestDto)
     {
-        try
-        {
-            var Token = _authService.Authenticate(requestDto);
-            return Ok(new LoginResponseDto(){ Token=Token });
-        }
-        catch (ArgumentException ex)
-        {
-            return BadRequest("Invalid credentials: " + ex.Message);
-        }
+        var Token = _authService.Authenticate(requestDto);
+        return OkResponse<LoginResponseDto>(new LoginResponseDto { Token=Token });
     }
 }
