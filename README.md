@@ -5,7 +5,7 @@
 
 1. **Clone the Repository**  
    ```bash
-   git clone https://github.com/bytes4guru/currency-converter.git
+   git clone https://github.com/antonigudesman/currency-converter.git
    cd currency-converter
    ```
 
